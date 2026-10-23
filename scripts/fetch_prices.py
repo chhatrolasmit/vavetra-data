@@ -16,7 +16,7 @@ Row format (short, to keep the files small):
 Safety: if the live list cannot be downloaded the run fails and the previous files stay as they are.
 Usage: DATA_GOV_IN_KEY=... python fetch_prices.py <out_dir>
 """
-import json, os, sys, time, urllib.parse, urllib.request
+import json, os, re, sys, time, urllib.parse, urllib.request
 from datetime import datetime, timedelta
 
 BASE = "https://api.data.gov.in/resource/"
@@ -25,6 +25,7 @@ HISTORY = "35985678-0d79-46b4-9ed6-6f13308a1d24"
 LIMIT = 4000
 HIST_EVERY = 6 * 3600          # seconds
 HIST_DAYS = 4
+STORE_DAYS = 31          # per-crop history kept for the app's 30-day graphs and alerts
 
 # Government spelling -> app state key (same table as States.kt in the app)
 STATES = {
@@ -111,9 +112,9 @@ def fetch_current():
     return out
 
 
-def fetch_history():
+def fetch_history(days=HIST_DAYS):
     out, offset, newest = {}, 0, None
-    for _ in range(60):
+    for _ in range(days * 8 + 20):
         j = api(HISTORY, [("sort[Arrival_Date]", "desc")], offset)
         recs = j.get("records") or []
         oldest = None
@@ -124,15 +125,72 @@ def fetch_history():
             d = datetime.strptime(x[1][0], "%d/%m/%Y")
             newest = newest or d
             oldest = d if oldest is None or d < oldest else oldest
-            if d >= newest - timedelta(days=HIST_DAYS - 1):
+            if d >= newest - timedelta(days=days - 1):
                 out.setdefault(x[0], []).append(x[1])
         offset += len(recs)
         total = int(j.get("total") or 0)
         print(f"history: {offset} rows read, oldest {oldest:%d/%m/%Y}" if oldest else f"history: {offset}")
-        if not recs or offset >= total or (oldest and newest and oldest < newest - timedelta(days=HIST_DAYS - 1)):
+        if not recs or offset >= total or (oldest and newest and oldest < newest - timedelta(days=days - 1)):
             break
         time.sleep(1)
     return out
+
+
+def slug(name):
+    """Same as PriceCache.slug() in the app."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def day(r):
+    return datetime.strptime(r[0], "%d/%m/%Y")
+
+
+def update_store(out_dir, hist):
+    """prices/h/<ST>/<commodity>.json: the last ~30 days of one crop in one state (newest first)."""
+    base = os.path.join(out_dir, "h")
+    newest = max((day(r) for rows in hist.values() for r in rows), default=None)
+    if newest is None:
+        return 0
+    cutoff = newest - timedelta(days=STORE_DAYS - 1)
+    touched = {}
+    for st, rows in hist.items():
+        for r in rows:
+            touched.setdefault((st, r[3]), []).append(r)
+    files = 0
+    # merge the new rows
+    for (st, c), rows in touched.items():
+        p = os.path.join(base, st, slug(c) + ".json")
+        have = {}
+        if os.path.exists(p):
+            try:
+                for r in json.load(open(p, encoding="utf-8"))["rows"]:
+                    have[(r[0], r[2], r[3], r[4])] = r
+            except Exception:
+                pass
+        for r in rows:  # [date, district, market, commodity, variety, grade, min, max, modal]
+            have[(r[0], r[2], r[4], r[5])] = [r[0], r[1], r[2], r[4], r[5], r[6], r[7], r[8]]
+        keep = sorted((r for r in have.values() if day(r) >= cutoff), key=day, reverse=True)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"v": 1, "c": c, "rows": keep}, f, ensure_ascii=False, separators=(",", ":"))
+        files += 1
+    # drop old days from crops that had no new prices
+    for st in os.listdir(base) if os.path.isdir(base) else []:
+        for fn in os.listdir(os.path.join(base, st)):
+            p = os.path.join(base, st, fn)
+            try:
+                j = json.load(open(p, encoding="utf-8"))
+            except Exception:
+                os.remove(p); continue
+            if (st, j.get("c")) in touched:
+                continue
+            keep = [r for r in j["rows"] if day(r) >= cutoff]
+            if not keep:
+                os.remove(p)
+            elif len(keep) < len(j["rows"]):
+                j["rows"] = keep
+                json.dump(j, open(p, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+    return files
 
 
 def main():
@@ -158,11 +216,18 @@ def main():
         cur = {k: v.get("cur", []) for k, v in old.items()}
 
     hist_at = meta.get("hist_at", 0)
+    store_at = meta.get("store_at", 0)
     hist = None
-    if now - hist_at >= HIST_EVERY:
+    if now - hist_at >= HIST_EVERY or not store_at:
         try:
-            hist = fetch_history() or None
-            if hist:
+            deep = not store_at  # first time: the whole month, then only the last few days
+            got = fetch_history(STORE_DAYS if deep else HIST_DAYS) or None
+            if got:
+                print("crop files:", update_store(out_dir, got))
+                store_at = now
+                newest = max(day(r) for rows in got.values() for r in rows)
+                cut = newest - timedelta(days=HIST_DAYS - 1)
+                hist = {k: [r for r in v if day(r) >= cut] for k, v in got.items()}
                 hist_at = now
         except Exception as e:
             print("history failed, keeping the old one:", e)
@@ -178,7 +243,7 @@ def main():
             json.dump({"v": 1, "updated": now, "hist_at": hist_at, "cur": c, "hist": h}, f,
                       ensure_ascii=False, separators=(",", ":"))
         n += len(c) + len(h)
-    meta = {"updated": now, "cur_ok": cur_ok, "hist_at": hist_at,
+    meta = {"updated": now, "cur_ok": cur_ok, "hist_at": hist_at, "store_at": store_at,
             "states": sorted(k for k in STATES if cur.get(k) or hist.get(k))}
     json.dump(meta, open(meta_p, "w", encoding="utf-8"), separators=(",", ":"))
     print(f"wrote {len(meta['states'])} states, {n} rows")
