@@ -1063,6 +1063,7 @@ HR	jullana	29.3418	76.2647	1
 HR	jundla	29.6491	76.8656	1
 HR	kaithal	29.8019	76.3967	1
 HR	kalanwali	29.8328	74.9786	1
+HR	kalanwaliapmc	29.5349	75.029	0
 HR	kalawali	29.7618	74.9016	1
 HR	kalawaliodhan	29.7618	74.9016	1
 HR	kalayat	29.6791	76.2606	1
@@ -1172,6 +1173,7 @@ JK	akhnoor	32.8667	74.7333	1
 JK	batengooanantnag	33.7299	75.1517	1
 JK	batote	33.1183	75.3089	1
 JK	bumhamakupwara	34.0306	74.2642	1
+JK	fruitandvegetableudhampur	32.922	75.1332	1
 JK	handwarakupwara	34.0306	74.2642	1
 JK	jabliporaanantnag	33.7299	75.1517	1
 JK	kanisporabaramulla	34.209	74.3428	1
@@ -1685,6 +1687,8 @@ MH	ambad	19.613	75.7891	1
 MH	ambadvadigodri	19.613	75.7891	1
 MH	ambejogai	18.7331	76.3862	1
 MH	amgaon	21.3605	80.3655	1
+MH	amrawati	20.9333	77.75	0
+MH	amrawatifruiveg	20.9333	77.75	0
 MH	anajngaon	21.1634	77.3107	1
 MH	arjunimorgaon	21.1216	79.8846	1
 MH	armori	19.4317	80.0638	0
@@ -1807,6 +1811,7 @@ MH	kalamnuri	19.6739	77.3115	1
 MH	kalmeshwar	21.2322	78.9199	1
 MH	kalvan	20.4933	74.0262	1
 MH	kalyan	19.2437	73.1355	1
+MH	kalyancattle	19.2397	73.1367	1
 MH	kamthi	21.2171	79.1945	1
 MH	kandhar	18.8701	77.197	1
 MH	kannad	20.2578	75.138	1
@@ -1825,6 +1830,7 @@ MH	khedchakan	18.7606	73.8635	1
 MH	khultabad	20.2578	75.138	0
 MH	killedharur	18.8202	76.1094	1
 MH	kinwat	19.6229	78.1975	1
+MH	kisanyard	20.2486	78.1658	0
 MH	kolhapur	16.6956	74.2317	1
 MH	kolhapurlaxmipuri	16.6956	74.2317	1
 MH	kolhapurmalkapur	16.6956	74.2317	1
@@ -1991,6 +1997,7 @@ MH	sonpeth	19.0261	76.4766	1
 MH	suragana	20.5598	73.6344	1
 MH	tadkalas	19.3013	76.4973	0
 MH	talegaondabhade	18.735	73.6756	1
+MH	talegaondabhadetalmawaldistpune	18.5196	73.8554	0
 MH	taloda	21.5606	74.2126	1
 MH	tasgaon	17.037	74.6017	1
 MH	telhara	21.0269	76.8389	1
@@ -2190,6 +2197,7 @@ MP	khujner	23.7861	76.6177	1
 MP	khurai	24.0434	78.3304	1
 MP	kolaras	25.2194	77.6118	1
 MP	kotma	23.2038	81.979	1
+MP	krishiupajmandisamitibichhiya	22.5997	80.3711	0
 MP	kukshi	22.208	74.7581	1
 MP	kumbhraj	24.3726	77.0492	1
 MP	kurawar	23.5178	77.0251	1
@@ -3062,6 +3070,7 @@ TG	sadashivnagar	18.3952	78.117	0
 TG	sadasivpet	17.6179	77.9483	1
 TG	sangareddy	17.6248	78.0867	1
 TG	sarangapur	18.9345	78.9592	1
+TG	sarangapurapmc	19.0398	78.7223	1
 TG	sardarnagar	17.2204	78.4865	1
 TG	sattupally	17.2497	80.869	1
 TG	shadnagar	17.0665	78.2034	1
@@ -3212,6 +3221,7 @@ TN	kariyapatti	9.6751	78.0999	1
 TN	karumanthurai	11.8273	78.6297	1
 TN	karur	10.9577	78.081	1
 TN	katpadi	12.9695	79.1455	1
+TN	katpadisanthai	12.2603	79.4139	1
 TN	kattumannarkoil	11.5503	79.5907	0
 TN	kaveripakkam	12.4922	79.68	1
 TN	kaveripattinam	12.4196	78.2163	1

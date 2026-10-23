@@ -3780,3 +3780,12 @@ Gujarat|Surat|Mahuva|21.01483|73.13907|gujarati
 Gujarat|Rajkot|Jetpur(Dist.Rajkot)|22.29161|70.79322|city
 Gujarat|Porbandar|Porbandar|21.64219|69.60929|city
 Gujarat|Morbi|Morbi|22.81731|70.8377|city
+Haryana|Sirsa|KALANWALIAPMC|29.53489|75.02898|district
+Jammu and Kashmir|Udhampur|Fruit and Vegetable Market Udhampur|32.92197|75.13315|osm
+Madhya Pradesh|Mandla|Krishi Upaj Mandi Samiti Bichhiya|22.59974|80.37108|district
+Maharashtra|Thane|Kalyan(Cattle Market)|19.23967|73.13665|osm
+Maharashtra|Amarawati|Amrawati(Frui & Veg. Market)|20.93333|77.75|district
+Maharashtra|Pune|Talegaon Dabhade Tal Mawal Dist Pune|18.51957|73.85535|district
+Maharashtra|Yavatmal|KISAN MARKET YARD|20.24856|78.16576|district
+Tamil Nadu|Vellore|Katpadi(Uzhavar Santhai)|12.26031|79.41387|osm
+Telangana|Nirmal|Sarangapur APMC161|19.03984|78.72231|osm
