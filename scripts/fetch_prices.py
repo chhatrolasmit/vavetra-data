@@ -80,6 +80,14 @@ def row(o):
     date = g(o, "arrival_date", "Arrival_Date")
     if not st or not date:
         return None
+    # A badly written date or a wrong year (23/10/2062) would become "the newest day": skip that line.
+    try:
+        d = datetime.strptime(date, "%d/%m/%Y").date()
+    except ValueError:
+        return None
+    today_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    if d > today_ist + timedelta(days=1) or d < today_ist - timedelta(days=400):
+        return None
     def num(*n):
         try:
             return float(g(o, *n).replace(",", "") or 0)
@@ -107,8 +115,10 @@ def fetch_current():
         offset += len(recs)
         total = int(j.get("total") or 0)
         print(f"current: {offset}/{total}")
-        if not recs or offset >= total:
+        if offset >= total:
             break
+        if not recs:  # the list stopped half way: do not publish a list with states missing
+            raise RuntimeError(f"live list incomplete ({offset}/{total})")
         time.sleep(1)
     return out
 
@@ -161,6 +171,7 @@ def update_store(out_dir, hist, newest=None):
     newest = newest or max((day(r) for rows in hist.values() for r in rows), default=None)
     if newest is None:
         return 0
+    newest = min(newest, datetime.utcnow() + timedelta(hours=5, minutes=30))
     cutoff = newest - timedelta(days=STORE_DAYS - 1)
     touched = {}
     for st, rows in hist.items():
@@ -173,12 +184,13 @@ def update_store(out_dir, hist, newest=None):
         have = {}
         if os.path.exists(p):
             try:
-                for r in json.load(open(p, encoding="utf-8"))["rows"]:
-                    have[(r[0], r[2], r[3], r[4])] = r
+                with open(p, encoding="utf-8") as f:
+                    for r in json.load(f).get("rows", []):  # [date, district, market, variety, grade, min, max, modal]
+                        have[(r[0], r[1], r[2], r[3], r[4])] = r
             except Exception:
                 pass
         for r in rows:  # [date, district, market, commodity, variety, grade, min, max, modal]
-            have[(r[0], r[2], r[4], r[5])] = [r[0], r[1], r[2], r[4], r[5], r[6], r[7], r[8]]
+            have[(r[0], r[1], r[2], r[4], r[5])] = [r[0], r[1], r[2], r[4], r[5], r[6], r[7], r[8]]
         keep = sorted((r for r in have.values() if day(r) >= cutoff), key=day, reverse=True)
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as f:
@@ -189,17 +201,21 @@ def update_store(out_dir, hist, newest=None):
         for fn in os.listdir(os.path.join(base, st)):
             p = os.path.join(base, st, fn)
             try:
-                j = json.load(open(p, encoding="utf-8"))
+                with open(p, encoding="utf-8") as f:
+                    j = json.load(f)
+                rows_old = j.get("rows", [])
+                keep = [r for r in rows_old if day(r) >= cutoff]
             except Exception:
-                os.remove(p); continue
+                os.remove(p)  # (file closed above, so Windows can delete it)
+                continue
             if (st, j.get("c")) in touched:
                 continue
-            keep = [r for r in j["rows"] if day(r) >= cutoff]
             if not keep:
                 os.remove(p)
-            elif len(keep) < len(j["rows"]):
+            elif len(keep) < len(rows_old):
                 j["rows"] = keep
-                json.dump(j, open(p, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(j, f, ensure_ascii=False, separators=(",", ":"))
     return files
 
 
@@ -273,7 +289,8 @@ def main():
     meta = {"updated": now, "cur_ok": cur_ok, "hist_at": hist_at, "store_at": store_at,
             "fill_off": fill_off, "fill_newest": fill_newest,
             "states": sorted(k for k in STATES if cur.get(k) or hist.get(k))}
-    json.dump(meta, open(meta_p, "w", encoding="utf-8"), separators=(",", ":"))
+    with open(meta_p, "w", encoding="utf-8") as f:
+        json.dump(meta, f, separators=(",", ":"))
     print(f"wrote {len(meta['states'])} states, {n} rows")
 
 
