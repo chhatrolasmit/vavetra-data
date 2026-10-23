@@ -1,0 +1,16 @@
+name: Check data.gov.in
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          K: ${{ secrets.DATA_GOV_IN_KEY }}
+        run: |
+          echo "Runner country: $(curl -s -m 10 https://ipinfo.io/country)"
+          for u in https://www.google.com https://agmarknet.gov.in https://data.gov.in https://api.data.gov.in/; do
+            echo "== $u"; curl -sS -o /dev/null -m 25 -w "HTTP %{http_code}  connect %{time_connect}s  total %{time_total}s\n" "$u" || echo "FAILED"
+          done
+          echo "== small API call (5 rows, Gujarat)"
+          curl -sS -o /dev/null -m 60 -w "HTTP %{http_code}  total %{time_total}s\n" \
+            "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=$K&format=json&limit=5&filters%5Bstate.keyword%5D=Gujarat" || echo "FAILED"
