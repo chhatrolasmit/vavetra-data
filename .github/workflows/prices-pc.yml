@@ -1,0 +1,53 @@
+name: Mandi prices (PC)
+
+# Runs on your own PC (Indian internet). Every 15 min from 05:30 to 21:30 India time, hourly at night.
+# If the PC is off, GitHub waits and runs it when the PC is back.
+on:
+  schedule:
+    - cron: "*/15 0-15 * * *"
+    - cron: "5 16-23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  prices:
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Previous prices
+        run: |
+          rm -rf out && mkdir -p out
+          if git fetch --depth=1 origin data:data 2>/dev/null; then
+            git archive data prices | tar -x -C out || true
+          fi
+
+      - name: Download prices
+        env:
+          DATA_GOV_IN_KEY: ${{ secrets.DATA_GOV_IN_KEY }}
+          PYTHONIOENCODING: utf-8
+        run: python scripts/fetch_prices.py out
+
+      - name: Publish
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          rm -rf .git
+          git init -q -b data
+          git config core.autocrlf false
+          git config user.name "vavetra-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prices
+          git commit -q -m "Prices $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
