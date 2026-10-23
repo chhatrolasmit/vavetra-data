@@ -25,6 +25,7 @@ HISTORY = "35985678-0d79-46b4-9ed6-6f13308a1d24"
 LIMIT = 4000
 HIST_EVERY = 6 * 3600          # seconds
 HIST_DAYS = 4
+FILL_PAGES = 35          # first month of crop history: pages per run (~7 min)
 STORE_DAYS = 31          # per-crop history kept for the app's 30-day graphs and alerts
 
 # Government spelling -> app state key (same table as States.kt in the app)
@@ -112,9 +113,14 @@ def fetch_current():
     return out
 
 
-def fetch_history(days=HIST_DAYS):
-    out, offset, newest = {}, 0, None
-    for _ in range(days * 8 + 20):
+def fetch_history(days=HIST_DAYS, offset=0, newest=None, max_pages=None):
+    """
+    History list, newest first, from [offset] until [days] days before the newest day.
+    Returns (rows per state, next offset, done?, newest day). [max_pages] stops early (continued next run).
+    New days appear at the top, so a later run that continues at an old offset only reads some rows twice.
+    """
+    out, pages, done = {}, 0, False
+    while True:
         j = api(HISTORY, [("sort[Arrival_Date]", "desc")], offset)
         recs = j.get("records") or []
         oldest = None
@@ -128,12 +134,16 @@ def fetch_history(days=HIST_DAYS):
             if d >= newest - timedelta(days=days - 1):
                 out.setdefault(x[0], []).append(x[1])
         offset += len(recs)
+        pages += 1
         total = int(j.get("total") or 0)
         print(f"history: {offset} rows read, oldest {oldest:%d/%m/%Y}" if oldest else f"history: {offset}")
         if not recs or offset >= total or (oldest and newest and oldest < newest - timedelta(days=days - 1)):
+            done = True
+            break
+        if max_pages and pages >= max_pages:
             break
         time.sleep(1)
-    return out
+    return out, offset, done, newest
 
 
 def slug(name):
@@ -145,10 +155,10 @@ def day(r):
     return datetime.strptime(r[0], "%d/%m/%Y")
 
 
-def update_store(out_dir, hist):
+def update_store(out_dir, hist, newest=None):
     """prices/h/<ST>/<commodity>.json: the last ~30 days of one crop in one state (newest first)."""
     base = os.path.join(out_dir, "h")
-    newest = max((day(r) for rows in hist.values() for r in rows), default=None)
+    newest = newest or max((day(r) for rows in hist.values() for r in rows), default=None)
     if newest is None:
         return 0
     cutoff = newest - timedelta(days=STORE_DAYS - 1)
@@ -217,20 +227,37 @@ def main():
 
     hist_at = meta.get("hist_at", 0)
     store_at = meta.get("store_at", 0)
+    fill_off = meta.get("fill_off", 0)
+    fill_newest = meta.get("fill_newest")
     hist = None
-    if now - hist_at >= HIST_EVERY or not store_at:
+
+    # Last few days (for the state files and the crop files), every 6 hours.
+    if now - hist_at >= HIST_EVERY:
         try:
-            deep = not store_at  # first time: the whole month, then only the last few days
-            got = fetch_history(STORE_DAYS if deep else HIST_DAYS) or None
+            got, _, _, newest = fetch_history(HIST_DAYS)
             if got:
                 print("crop files:", update_store(out_dir, got))
-                store_at = now
-                newest = max(day(r) for rows in got.values() for r in rows)
-                cut = newest - timedelta(days=HIST_DAYS - 1)
-                hist = {k: [r for r in v if day(r) >= cut] for k, v in got.items()}
-                hist_at = now
+                hist, hist_at = got, now
+                if store_at:
+                    store_at = now
         except Exception as e:
             print("history failed, keeping the old one:", e)
+
+    # First time only: the whole month for the crop files, FILL_PAGES pages per run (the run stays short,
+    # today's prices keep coming every run). The app uses the crop files only once this is complete.
+    if not store_at:
+        try:
+            nd = datetime.strptime(fill_newest, "%d/%m/%Y") if fill_newest else None
+            got, fill_off, done, nd = fetch_history(STORE_DAYS, fill_off, nd, FILL_PAGES)
+            if got:
+                print("crop files (month):", update_store(out_dir, got, nd))
+            fill_newest = nd.strftime("%d/%m/%Y") if nd else None
+            if done:
+                store_at = now
+                print("month of crop history complete")
+        except Exception as e:
+            print("month history: will continue next run:", e)
+
     if hist is None:
         hist = {k: v.get("hist", []) for k, v in old.items()}
 
@@ -244,6 +271,7 @@ def main():
                       ensure_ascii=False, separators=(",", ":"))
         n += len(c) + len(h)
     meta = {"updated": now, "cur_ok": cur_ok, "hist_at": hist_at, "store_at": store_at,
+            "fill_off": fill_off, "fill_newest": fill_newest,
             "states": sorted(k for k in STATES if cur.get(k) or hist.get(k))}
     json.dump(meta, open(meta_p, "w", encoding="utf-8"), separators=(",", ":"))
     print(f"wrote {len(meta['states'])} states, {n} rows")
