@@ -1,6 +1,6 @@
 name: Mandi prices (PC)
 
-# Runs on your own PC (Indian internet). Every 15 min from 05:30 to 21:30 India time, hourly at night.
+# Runs on your own PC (Indian internet). Every 10 min from 05:30 to 21:30 India time, hourly at night.
 # Only Windows cmd + git + python are used (no Node.js actions).
 on:
   schedule:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   prices:
     runs-on: [self-hosted, Windows]
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Prices
         shell: cmd
@@ -30,15 +30,19 @@ jobs:
           if exist work rmdir /s /q work
           git clone -q --depth 1 https://x-access-token:%TOKEN%@github.com/%GITHUB_REPOSITORY%.git work || exit /b 1
           cd work
-          mkdir out
-          git fetch -q --depth=1 origin data:data 2>nul && git archive -o prev.tar data prices && tar -xf prev.tar -C out
+          git fetch -q --depth=1 origin data:data 2>nul
+          if errorlevel 1 (
+            mkdir out
+          ) else (
+            git worktree add -q out data || exit /b 1
+          )
           python scripts\fetch_prices.py out || exit /b 1
           cd out
-          git init -q -b data || exit /b 1
+          if not exist .git git init -q -b data
           git config core.autocrlf false
           git config user.name vavetra-bot
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add prices || exit /b 1
-          git commit -q -m "Prices update" || exit /b 1
+          git add -A prices || exit /b 1
+          git commit -q --amend -m "Prices update" 2>nul || git commit -q -m "Prices update" || exit /b 1
           git push -q -f https://x-access-token:%TOKEN%@github.com/%GITHUB_REPOSITORY%.git data || exit /b 1
           echo Done.
